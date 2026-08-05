@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { checkpoints, logisticsPoints } from '../data'
+import { drive, links, mapPoints } from '../data'
 
-type LayerMode = 'course' | 'mission'
+type LayerMode = 'drive' | 'course'
 
-const missionCoordinates = logisticsPoints.map((point) => `${point.lon},${point.lat}`).join(';')
+type RouteGeoJson = {
+  features?: Array<{ geometry?: { coordinates?: [number, number][] } }>
+}
 
 function markerIcon(label: string, accent = false) {
   return L.divIcon({
     className: 'map-marker-shell',
     html: `<span class="map-marker ${accent ? 'map-marker--accent' : ''}">${label}</span>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
   })
 }
 
@@ -20,10 +22,10 @@ export function CourseMap() {
   const elementRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const courseRef = useRef<L.Polyline | null>(null)
-  const missionRef = useRef<L.Polyline | null>(null)
-  const [mode, setMode] = useState<LayerMode>('course')
-  const [message, setMessage] = useState('Chargement du tracé…')
-  const [missionReady, setMissionReady] = useState(false)
+  const driveRef = useRef<L.Polyline | null>(null)
+  const transferRef = useRef<L.Polyline | null>(null)
+  const [mode, setMode] = useState<LayerMode>('drive')
+  const [driveReady, setDriveReady] = useState(false)
 
   useEffect(() => {
     if (!elementRef.current || mapRef.current) return
@@ -36,48 +38,51 @@ export function CourseMap() {
       maxZoom: 18,
     }).addTo(map)
 
-    checkpoints.filter((checkpoint) => checkpoint.role).forEach((checkpoint) => {
-      const isSpectator = checkpoint.role === 'spectator'
-      L.marker([checkpoint.lat, checkpoint.lon], { icon: markerIcon(isSpectator ? '👁' : checkpoint.role === 'start' ? 'S' : 'Z', isSpectator) })
-        .bindPopup(`<strong>${checkpoint.name}</strong><br>Km ${checkpoint.km} · passage prévu ${checkpoint.time}`)
+    mapPoints.forEach((point) => {
+      const label = point.shortName === 'Sierre' ? 'D' : point.shortName === 'Zwissig' ? 'V' : point.shortName === 'Mottec' ? 'P' : 'A'
+      const accent = point.shortName === 'Mottec' || point.shortName === 'Zinal'
+      L.marker([point.lat, point.lon], { icon: markerIcon(label, accent) })
+        .bindPopup(`<strong>${point.name}</strong>`)
         .addTo(map)
     })
-    const mottec = logisticsPoints.find((point) => point.name === 'Parking Mottec')!
-    L.marker([mottec.lat, mottec.lon], { icon: markerIcon('P', true) })
-      .bindPopup('<strong>Parking Mottec</strong><br>Parking spectateurs officiel puis 2,4 km vers Zinal.')
-      .addTo(map)
 
-    fetch(`${import.meta.env.BASE_URL}data/sierre-zinal-2026.gpx`).then((response) => {
-      if (!response.ok) throw new Error('GPX indisponible')
-      return response.text()
-    }).then((gpx) => {
+    const mottec = mapPoints.find((point) => point.shortName === 'Mottec')!
+    const zinal = mapPoints.find((point) => point.shortName === 'Zinal')!
+    transferRef.current = L.polyline([[mottec.lat, mottec.lon], [zinal.lat, zinal.lon]], {
+      color: '#146a61', weight: 4, opacity: 0.9, dashArray: '5 7',
+    }).bindTooltip('Navette / pied · env. 2,4 km')
+
+    Promise.all([
+      fetch(`${import.meta.env.BASE_URL}data/sierre-mottec-route.geojson`).then((response) => {
+        if (!response.ok) throw new Error('Route locale indisponible')
+        return response.json() as Promise<RouteGeoJson>
+      }),
+      fetch(`${import.meta.env.BASE_URL}data/sierre-zinal-2026.gpx`).then((response) => {
+        if (!response.ok) throw new Error('GPX indisponible')
+        return response.text()
+      }),
+    ]).then(([route, gpx]) => {
       if (cancelled) return
+
+      const routeCoordinates = route.features?.[0]?.geometry?.coordinates
+      if (routeCoordinates?.length) {
+        driveRef.current = L.polyline(routeCoordinates.map(([lon, lat]) => [lat, lon] as L.LatLngExpression), {
+          color: '#d9553b', weight: 6, opacity: 0.95,
+        })
+        driveRef.current.addTo(map)
+        transferRef.current?.addTo(map)
+        map.fitBounds(driveRef.current.getBounds().extend([zinal.lat, zinal.lon]), { padding: [24, 24] })
+        setDriveReady(true)
+      }
+
       const xml = new DOMParser().parseFromString(gpx, 'application/xml')
-      const latLngs = Array.from(xml.getElementsByTagNameNS('*', 'trkpt')).map((point) =>
+      const courseCoordinates = Array.from(xml.getElementsByTagNameNS('*', 'trkpt')).map((point) =>
         L.latLng(Number(point.getAttribute('lat')), Number(point.getAttribute('lon'))),
       )
-      const course = L.polyline(latLngs, { color: '#e46f51', weight: 5, opacity: 0.95 }).addTo(map)
-      courseRef.current = course
-      map.fitBounds(course.getBounds(), { padding: [18, 18] })
-      setMessage('31 km · tracé GPX Strava')
+      courseRef.current = L.polyline(courseCoordinates, { color: '#146a61', weight: 5, opacity: 0.92 })
     }).catch(() => {
       if (cancelled) return
-      map.setView([46.22, 7.6], 11)
-      setMessage('Tracé indisponible hors connexion')
-    })
-
-    fetch(`https://router.project-osrm.org/route/v1/driving/${missionCoordinates}?overview=full&geometries=geojson`)
-      .then((response) => response.ok ? response.json() : null)
-      .catch(() => null)
-      .then((mission) => {
-      if (cancelled) return
-      const routeCoordinates = mission?.routes?.[0]?.geometry?.coordinates as [number, number][] | undefined
-      if (routeCoordinates) {
-        missionRef.current = L.polyline(routeCoordinates.map(([lon, lat]) => [lat, lon] as L.LatLngExpression), {
-          color: '#e6b85c', weight: 5, opacity: 0.9, dashArray: '9 8',
-        })
-        setMissionReady(true)
-      }
+      map.fitBounds([[46.13764, 7.62532], [46.29448, 7.55023]], { padding: [24, 24] })
     })
 
     return () => {
@@ -90,21 +95,29 @@ export function CourseMap() {
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
+    const zinal = mapPoints.find((point) => point.shortName === 'Zinal')!
+    const driveLayers = [driveRef.current, transferRef.current]
+    driveLayers.forEach((layer) => {
+      if (!layer) return
+      if (mode === 'drive') layer.addTo(map)
+      else layer.removeFrom(map)
+    })
     if (courseRef.current) {
-      if (mode === 'course') courseRef.current.addTo(map)
-      else courseRef.current.removeFrom(map)
+      if (mode === 'course') {
+        courseRef.current.addTo(map)
+        map.fitBounds(courseRef.current.getBounds(), { padding: [24, 24] })
+      } else {
+        courseRef.current.removeFrom(map)
+        if (driveRef.current) map.fitBounds(driveRef.current.getBounds().extend([zinal.lat, zinal.lon]), { padding: [24, 24] })
+      }
     }
-    if (missionRef.current) {
-      if (mode === 'mission') missionRef.current.addTo(map)
-      else missionRef.current.removeFrom(map)
-    }
-  }, [mode, message, missionReady])
+  }, [mode, driveReady])
 
   function locateMe() {
     mapRef.current?.locate({ setView: true, maxZoom: 15 })
     mapRef.current?.once('locationfound', (event) => {
-      L.circleMarker(event.latlng, { radius: 8, color: '#fff', fillColor: '#2c6e62', fillOpacity: 1, weight: 3 })
-        .bindPopup('Ta position')
+      L.circleMarker(event.latlng, { radius: 8, color: '#fff', fillColor: '#146a61', fillOpacity: 1, weight: 3 })
+        .bindPopup('Ma position')
         .addTo(mapRef.current!)
         .openPopup()
     })
@@ -112,13 +125,28 @@ export function CourseMap() {
 
   return (
     <div className="map-wrap">
-      <div className="map-controls" aria-label="Calques de la carte">
-        <button className={mode === 'course' ? 'active' : ''} onClick={() => setMode('course')}>Course</button>
-        <button className={mode === 'mission' ? 'active' : ''} onClick={() => setMode('mission')}>Mission Cyril</button>
+      <div className="map-controls" role="group" aria-label="Calques de la carte">
+        <button className={mode === 'drive' ? 'active' : ''} aria-pressed={mode === 'drive'} onClick={() => setMode('drive')}>Voiture</button>
+        <button className={mode === 'course' ? 'active' : ''} aria-pressed={mode === 'course'} onClick={() => setMode('course')}>Course</button>
       </div>
       <button className="locate-button" onClick={locateMe} aria-label="Afficher ma position">⌖</button>
-      <div ref={elementRef} className="course-map" role="img" aria-label="Carte OpenStreetMap du parcours Sierre-Zinal" />
-      <div className="map-caption"><span>{message}</span><span>GPX · OSM</span></div>
+      <div ref={elementRef} className="course-map" role="img" aria-label="Carte du trajet entre Sierre, Mottec et Zinal" />
+      {mode === 'drive' ? (
+        <>
+          <div className="map-metrics">
+            <strong>{drive.distance}</strong>
+            <span>{drive.baseline} hors trafic</span>
+            <b>{drive.eventBudget} événement</b>
+          </div>
+          <a className="map-navigation" href={links.navigate} target="_blank" rel="noreferrer">Naviguer <span>↗</span></a>
+        </>
+      ) : (
+        <div className="map-metrics map-metrics--course">
+          <strong>31 km</strong>
+          <span>2 200 m D+</span>
+          <b>11:10 → 15:25</b>
+        </div>
+      )}
     </div>
   )
 }

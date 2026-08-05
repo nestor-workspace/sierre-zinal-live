@@ -9,11 +9,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'data/sierre-zinal-2026.gpx', 'data/plan-effort-estelle.pdf'],
+      includeAssets: ['favicon.svg', 'data/sierre-zinal-2026.gpx', 'data/sierre-mottec-route.geojson', 'data/plan-effort-estelle.pdf'],
       manifest: {
         name: 'Estelle · Sierre-Zinal 2026',
         short_name: 'Sierre-Zinal',
-        description: 'Tableau de bord de suivi de course et logistique spectateur.',
+        description: 'Outil terrain pour suivre Estelle et rejoindre l’arrivée à Zinal.',
         theme_color: '#16231f',
         background_color: '#f4f0e7',
         display: 'standalone',
@@ -24,7 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,gpx,pdf}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,gpx,geojson,pdf}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/tile\.openstreetmap\.org\//,

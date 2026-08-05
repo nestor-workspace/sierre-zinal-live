@@ -1,6 +1,9 @@
 export const RACE_START = new Date('2026-08-08T11:10:00+02:00')
 export const PLANNED_FINISH = new Date('2026-08-08T15:25:00+02:00')
 
+const zwissig = { name: 'Parking Zwissig', shortName: 'Zwissig', lat: 46.2944797, lon: 7.5502294, kind: 'parking' } as const
+const mottec = { name: 'Parking Mottec', shortName: 'Mottec', lat: 46.1567079, lon: 7.6198685, kind: 'parking' } as const
+
 export const links = {
   estelle: 'https://datasport.com/fr/course/sierre-zinal-2026/participant/chauveau-estelle',
   ranking: 'https://datasport.com/fr/course/sierre-zinal-2026/ranking',
@@ -8,7 +11,13 @@ export const links = {
   traffic: 'https://www.sierre-zinal.com/fr/restrictions-circulation-2887.html',
   access: 'https://www.sierre-zinal.com/fr/acces-parkings-415.html',
   mottec: 'https://www.sierre-zinal.com/fr/parking-acces-zinal-2884.html',
-  spectator: 'https://www.sierre-zinal.com/fr/voir-course-382.html',
+  navigate: `https://www.google.com/maps/dir/?api=1&origin=${zwissig.lat},${zwissig.lon}&destination=${mottec.lat},${mottec.lon}&travelmode=driving`,
+} as const
+
+export const drive = {
+  distance: '23,9 km',
+  baseline: '25–30 min',
+  eventBudget: '45–60 min',
 } as const
 
 export type Checkpoint = {
@@ -19,14 +28,14 @@ export type Checkpoint = {
   time: string
   lat: number
   lon: number
-  role?: 'start' | 'spectator' | 'finish'
+  role?: 'start' | 'finish'
 }
 
 export const checkpoints: Checkpoint[] = [
   { name: 'Sierre', km: 0, elevation: 585, offsetMinutes: 0, time: '11:10', lat: 46.28961, lon: 7.56466, role: 'start' },
   { name: 'Km 4', km: 4, elevation: 1600, offsetMinutes: 30, time: '11:40', lat: 46.27479, lon: 7.56381 },
   { name: 'Km 8', km: 8, elevation: 1936, offsetMinutes: 80, time: '12:30', lat: 46.26948, lon: 7.59761 },
-  { name: 'Chandolin', km: 11, elevation: 2000, offsetMinutes: 110, time: '13:00', lat: 46.25173, lon: 7.59949, role: 'spectator' },
+  { name: 'Chandolin', km: 11, elevation: 2000, offsetMinutes: 110, time: '13:00', lat: 46.25173, lon: 7.59949 },
   { name: 'Tignousa', km: 16, elevation: 2210, offsetMinutes: 155, time: '13:45', lat: 46.22298, lon: 7.62266 },
   { name: 'Weisshorn', km: 19.5, elevation: 2425, offsetMinutes: 185, time: '14:15', lat: 46.20487, lon: 7.61887 },
   { name: 'Barneuza', km: 22, elevation: 2398, offsetMinutes: 202, time: '14:32', lat: 46.18519, lon: 7.62445 },
@@ -34,31 +43,20 @@ export const checkpoints: Checkpoint[] = [
   { name: 'Zinal', km: 31, elevation: 1670, offsetMinutes: 255, time: '15:25', lat: 46.13764, lon: 7.62532, role: 'finish' },
 ]
 
-export const logisticsPoints = [
-  { name: 'Départ', lat: 46.28961, lon: 7.56466, kind: 'race' },
-  { name: 'Vercorin', lat: 46.25717, lon: 7.5307, kind: 'route' },
-  { name: 'Vissoie', lat: 46.21532, lon: 7.58536, kind: 'route' },
-  { name: 'Chandolin', lat: 46.25173, lon: 7.59949, kind: 'spectator' },
-  { name: 'Parking Mottec', lat: 46.15671, lon: 7.61987, kind: 'parking' },
-  { name: 'Arrivée Zinal', lat: 46.13764, lon: 7.62532, kind: 'finish' },
-] as const
+export const drivingPoints = [zwissig, mottec] as const
 
-export const effortSegments = [
-  { km: '0–4', name: 'Mise en route', duration: '30 min', cardio: '< 150', cue: 'Courue, facile' },
-  { km: '4–8', name: 'Le mur', duration: '50 min', cardio: '150–158', cue: '700–740 m/h' },
-  { km: '8–11', name: 'Transition', duration: '30 min', cardio: '148–152', cue: 'Alterné' },
-  { km: '11–22', name: 'Long faux-plat', duration: '1 h 32', cardio: '145–155', cue: 'Cadence 87–90' },
-  { km: '22–26', name: 'Descente roulante', duration: '25 min', cardio: '140–150', cue: 'Relâchée' },
-  { km: '26–31', name: 'Descente technique', duration: '28 min', cardio: '145–155', cue: 'Petits pas' },
+export const mapPoints = [
+  { name: 'Départ Sierre', shortName: 'Sierre', lat: 46.28961, lon: 7.56466, kind: 'race' },
+  zwissig,
+  mottec,
+  { name: 'Arrivée Zinal', shortName: 'Zinal', lat: 46.13764, lon: 7.62532, kind: 'finish' },
 ] as const
 
 export const missionSteps = [
-  { time: '10:25', title: 'Dans la zone départ', text: 'Accueil obligatoire au plus tard 45 min avant la vague. Environ 600 m balisés jusqu’à la ligne.' },
-  { time: '11:10', title: 'Voir le départ', text: 'Vague 2 · dossard 8537. Repars aussitôt vers la voiture.' },
-  { time: '11:15–12:35', title: 'Route vers Chandolin', text: 'Option robuste : Vercorin → Vissoie → Chandolin. La route directe d’Anniviers reste fermée jusqu’à 11:30.' },
-  { time: '12:40', title: 'Point de décision', text: 'Si tu n’es pas garé à Chandolin : abandonne ce point et file vers Mottec. L’arrivée prime.' },
-  { time: '≈ 13:00', title: 'Voir Estelle à Chandolin', text: 'Km 11. Place-toi avant le ravitaillement, côté course, sans traverser le flux.' },
-  { time: '13:05', title: 'Départ impératif', text: 'Chandolin → Vissoie → Mottec. Compte 45–60 min avec le trafic événementiel.' },
-  { time: '14:10–14:20', title: 'Parking spectateurs Mottec', text: 'Laisse la voiture au parking officiel. Navette gratuite ou 2,4 km à pied/course jusqu’à Zinal.' },
-  { time: '14:45', title: 'Installé à l’arrivée', text: 'Marge cible de 40 min avant l’arrivée prévue à 15:25.' },
+  { time: '10:25', title: 'Départ Sierre', text: 'Dans la zone départ, puis ligne à 11:10.' },
+  { time: '11:15', title: 'Voiture', text: 'Rejoins Zwissig et attends la réouverture si nécessaire.' },
+  { time: '12:15–12:30', title: 'Parking Mottec', text: '23,9 km · prévoir 45–60 min après la réouverture.' },
+  { time: 'dès l’arrivée', title: 'Navette ou pied', text: 'Navette gratuite continue 08:00–22:00, ou environ 2,4 km à pied.' },
+  { time: 'avant 14:45', title: 'Se placer à Zinal', text: 'Rejoins la zone d’arrivée et choisis ton point de vue.' },
+  { time: '15:25', title: 'Arrivée Estelle', text: 'Passage prévu sur l’objectif 4 h 15.' },
 ] as const
