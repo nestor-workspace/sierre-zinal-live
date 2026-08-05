@@ -27,6 +27,7 @@ export function CourseMap() {
 
   useEffect(() => {
     if (!elementRef.current || mapRef.current) return
+    let cancelled = false
     const map = L.map(elementRef.current, { zoomControl: false, preferCanvas: true })
     mapRef.current = map
     L.control.zoom({ position: 'bottomright' }).addTo(map)
@@ -50,6 +51,7 @@ export function CourseMap() {
       if (!response.ok) throw new Error('GPX indisponible')
       return response.text()
     }).then((gpx) => {
+      if (cancelled) return
       const xml = new DOMParser().parseFromString(gpx, 'application/xml')
       const latLngs = Array.from(xml.getElementsByTagNameNS('*', 'trkpt')).map((point) =>
         L.latLng(Number(point.getAttribute('lat')), Number(point.getAttribute('lon'))),
@@ -59,6 +61,7 @@ export function CourseMap() {
       map.fitBounds(course.getBounds(), { padding: [18, 18] })
       setMessage('31 km · tracé GPX Strava')
     }).catch(() => {
+      if (cancelled) return
       map.setView([46.22, 7.6], 11)
       setMessage('Tracé indisponible hors connexion')
     })
@@ -67,6 +70,7 @@ export function CourseMap() {
       .then((response) => response.ok ? response.json() : null)
       .catch(() => null)
       .then((mission) => {
+      if (cancelled) return
       const routeCoordinates = mission?.routes?.[0]?.geometry?.coordinates as [number, number][] | undefined
       if (routeCoordinates) {
         missionRef.current = L.polyline(routeCoordinates.map(([lon, lat]) => [lat, lon] as L.LatLngExpression), {
@@ -77,6 +81,7 @@ export function CourseMap() {
     })
 
     return () => {
+      cancelled = true
       map.remove()
       mapRef.current = null
     }
