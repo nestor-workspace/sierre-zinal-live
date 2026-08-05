@@ -1,0 +1,9 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "sierre-zinal-live",
+      "include-component-in-tag": false
+    }
+  }
+}
